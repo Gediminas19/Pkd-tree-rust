@@ -1,7 +1,11 @@
 mod batch_insert;
 mod build_tree;
+mod nearest_neighbors;
 
-use crate::sieve::Basic;
+use crate::{
+    batch_par_kd_tree_trait::{BatchParKDTree, Coord},
+    bbox::BBox,
+};
 use num_traits::{Bounded, NumOps};
 use ordered_float::OrderedFloat;
 use rayon::prelude::*;
@@ -11,69 +15,6 @@ const PHI: usize = 32; // max number of points in leaf node
 const SIGMA: usize = 32; // oversampling rate
 const ALPHA: f32 = 0.3; // imbalance limit
 const SIMPLE_THRESHOLD: usize = SIGMA * 2usize.pow(LAMBDA as u32);
-
-pub trait Coord: Basic + Default + Bounded + NumOps {}
-impl Coord for i32 {}
-impl Coord for OrderedFloat<f32> {}
-
-impl<C: Coord, const K: usize> Basic for [C; K] {}
-
-#[derive(Debug, Copy, Clone)]
-struct BBox<C: Coord, const K: usize> {
-    mins: [C; K],
-    maxs: [C; K],
-}
-
-impl<C: Coord, const K: usize> BBox<C, K> {
-    fn unbounded() -> Self {
-        Self {
-            mins: [C::min_value(); K],
-            maxs: [C::max_value(); K],
-        }
-    }
-
-    fn build(points: &[[C; K]]) -> Self {
-        let (mins, maxs) = rayon::join(
-            || {
-                points.par_iter().map(|p| *p).reduce(
-                    || [C::max_value(); K],
-                    |p1, p2| std::array::from_fn(|i| C::min(p1[i], p2[i])),
-                )
-            },
-            || {
-                points.par_iter().map(|p| *p).reduce(
-                    || [C::min_value(); K],
-                    |p1, p2| std::array::from_fn(|i| C::max(p1[i], p2[i])),
-                )
-            },
-        );
-        Self { mins, maxs }
-    }
-
-    fn widest_axis(&self) -> usize {
-        let (_width, axis) = (0..K).map(|i| (self.maxs[i] - self.mins[i], i)).max().unwrap();
-        axis
-    }
-
-    fn split(&self, coord: C, axis: usize) -> (Self, Self) {
-        let (mut left, mut right) = (*self, *self);
-        left.maxs[axis] = coord;
-        right.mins[axis] = coord;
-        (left, right)
-    }
-
-    fn merge(b1: Self, b2: Self) -> Self {
-        let mins = std::array::from_fn(|i| C::min(b1.mins[i], b2.mins[i]));
-        let maxs = std::array::from_fn(|i| C::max(b1.maxs[i], b2.maxs[i]));
-        Self { mins, maxs }
-    }
-}
-
-impl<C: Coord, const K: usize> Default for BBox<C, K> {
-    fn default() -> Self {
-        Self::unbounded()
-    }
-}
 
 #[derive(Debug, Clone)]
 enum Node<C: Coord, const K: usize> {
@@ -148,5 +89,22 @@ pub struct PKDTree<C: Coord, const K: usize>(Node<C, K>);
 impl<C: Coord, const K: usize> PKDTree<C, K> {
     fn bbox(&self) -> BBox<C, K> {
         self.0.bbox()
+    }
+}
+
+impl<C: Coord, const K: usize> BatchParKDTree<C, K> for PKDTree<C, K> {
+    fn build(mut points: Vec<[C; K]>) -> Self {
+        let bbox = BBox::build(&points);
+        println!("Bounded by {:?}", bbox);
+        Self(Node::build(&mut points, bbox))
+    }
+
+    fn batch_insert(&mut self, mut points: Vec<[C; K]>) {
+        let bbox = BBox::merge(BBox::build(&points), self.bbox());
+        self.0.batch_insert(&mut points, bbox);
+    }
+
+    fn batch_nearests(&self, points: &[[C; K]], num: usize) -> Vec<Vec<(C, [C; K])>> {
+        points.into_par_iter().map(|p| self.nearests(p, num)).collect()
     }
 }

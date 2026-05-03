@@ -231,9 +231,4 @@ impl<C: Coord, const K: usize> PKDTree<C, K> {
         let bbox = BBox::build(&points);
         Self(Node::build_simple(&mut points, None, bbox))
     }
-
-    pub fn build(mut points: Vec<[C; K]>) -> Self {
-        let bbox = BBox::build(&points);
-        Self(Node::build(&mut points, bbox))
-    }
 }

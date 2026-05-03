@@ -8,6 +8,7 @@ use rdst::{RadixKey, RadixSort};
 pub trait Basic: Debug + Copy + Send + Sync + Ord {}
 
 impl Basic for i32 {}
+impl Basic for u32 {}
 impl Basic for OrderedFloat<f32> {}
 
 #[derive(Copy, Clone)]
@@ -93,19 +94,11 @@ impl<P> RadixKey for WithBucket<P> {
 }
 
 pub trait Sieve<P: Basic> {
-    fn sieve(
-        &mut self,
-        num_buckets: usize,
-        get_bucket: &(impl Sync + Fn(&P) -> u8),
-    ) -> (Vec<usize>, Vec<usize>);
+    fn sieve(&mut self, num_buckets: usize, get_bucket: &(impl Sync + Fn(&P) -> u8)) -> (Vec<usize>, Vec<usize>);
 }
 
 impl<P: Basic> Sieve<P> for [P] {
-    fn sieve(
-        &mut self,
-        num_buckets: usize,
-        get_bucket: &(impl Sync + Fn(&P) -> u8),
-    ) -> (Vec<usize>, Vec<usize>) {
+    fn sieve(&mut self, num_buckets: usize, get_bucket: &(impl Sync + Fn(&P) -> u8)) -> (Vec<usize>, Vec<usize>) {
         // tag elements with bucket, then do counting sort (1-layered radix sort)
         let mut tagged_elems = self
             .par_iter()
@@ -119,10 +112,7 @@ impl<P: Basic> Sieve<P> for [P] {
         let bucket_offsets = (0..=num_buckets)
             .map(|id| tagged_elems.partition_point(|bp| (bp.1 as usize) < id))
             .collect::<Vec<_>>();
-        let bucket_sizes = bucket_offsets
-            .array_windows()
-            .map(|[start, end]| end - start)
-            .collect();
+        let bucket_sizes = bucket_offsets.array_windows().map(|[start, end]| end - start).collect();
         (bucket_offsets, bucket_sizes)
     }
 }

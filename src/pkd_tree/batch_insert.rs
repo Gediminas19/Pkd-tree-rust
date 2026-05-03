@@ -88,8 +88,8 @@ impl<C: Coord, const K: usize> Node<C, K> {
                 unsafe {
                     all_points.set_len(new_total);
                 }
-                self.flatten(&mut all_points[0..*total]);
-                all_points[*total..new_total].copy_from_slice(new_points);
+                self.flatten(&mut all_points[0..size]);
+                all_points[size..new_total].copy_from_slice(new_points);
 
                 // rebuild with old and new points
                 *self = Self::build(&mut all_points, bbox);
@@ -98,7 +98,7 @@ impl<C: Coord, const K: usize> Node<C, K> {
         }
     }
 
-    fn batch_insert(&mut self, new_points: &mut [[C; K]], bbox: BBox<C, K>) {
+    pub(crate) fn batch_insert(&mut self, new_points: &mut [[C; K]], bbox: BBox<C, K>) {
         match self {
             // base case
             Node::Leaf { points, bbox } => {
@@ -133,10 +133,5 @@ impl<C: Coord, const K: usize> PKDTree<C, K> {
     pub fn batch_insert_simple(&mut self, mut points: Vec<[C; K]>) {
         let bbox = BBox::merge(BBox::build(&points), self.bbox());
         self.0.batch_insert_simple(&mut points, bbox);
-    }
-
-    pub fn batch_insert(&mut self, mut points: Vec<[C; K]>) {
-        let bbox = BBox::merge(BBox::build(&points), self.bbox());
-        self.0.batch_insert(&mut points, bbox);
     }
 }
