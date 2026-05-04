@@ -6,8 +6,6 @@ use crate::{
     batch_par_kd_tree_trait::{BatchParKDTree, Coord},
     bbox::BBox,
 };
-use num_traits::{Bounded, NumOps};
-use ordered_float::OrderedFloat;
 use rayon::prelude::*;
 
 const LAMBDA: usize = 6; // number of levels in a tree skeleton
@@ -95,7 +93,7 @@ impl<C: Coord, const K: usize> PKDTree<C, K> {
 impl<C: Coord, const K: usize> BatchParKDTree<C, K> for PKDTree<C, K> {
     fn build(mut points: Vec<[C; K]>) -> Self {
         let bbox = BBox::build(&points);
-        println!("Bounded by {:?}", bbox);
+        // println!("Bounded by {:?}", bbox);
         Self(Node::build(&mut points, bbox))
     }
 
@@ -106,5 +104,22 @@ impl<C: Coord, const K: usize> BatchParKDTree<C, K> for PKDTree<C, K> {
 
     fn batch_nearests(&self, points: &[[C; K]], num: usize) -> Vec<Vec<(C, [C; K])>> {
         points.into_par_iter().map(|p| self.nearests(p, num)).collect()
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct SimplePKDTree<C: Coord, const K: usize>(PKDTree<C, K>);
+
+impl<C: Coord, const K: usize> BatchParKDTree<C, K> for SimplePKDTree<C, K> {
+    fn build(points: Vec<[C; K]>) -> Self {
+        Self(PKDTree::build_simple(points))
+    }
+
+    fn batch_insert(&mut self, points: Vec<[C; K]>) {
+        self.0.batch_insert_simple(points);
+    }
+
+    fn batch_nearests(&self, points: &[[C; K]], num: usize) -> Vec<Vec<(C, [C; K])>> {
+        self.0.batch_nearests(points, num)
     }
 }

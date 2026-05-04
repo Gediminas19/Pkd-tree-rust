@@ -2,10 +2,7 @@ use std::collections::BinaryHeap;
 
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
 
-use crate::{
-    pkd_tree::{ALPHA, BBox, Coord, Node, PHI, PKDTree, SIMPLE_THRESHOLD, Skeleton, SkeletonEntry},
-    sieve::Sieve,
-};
+use crate::pkd_tree::{Coord, Node, PKDTree};
 
 impl<C: Coord, const K: usize> Node<C, K> {
     pub fn nearests(&self, point: &[C; K], num: usize, heap: &mut BinaryHeap<(C, [C; K])>) {
@@ -23,9 +20,7 @@ impl<C: Coord, const K: usize> Node<C, K> {
                         heap.push((sqdist, *p));
                     } else if sqdist < heap.peek().unwrap().0 {
                         heap.push((sqdist, *p));
-                        while heap.len() > num {
-                            heap.pop();
-                        }
+                        heap.pop();
                     }
                 });
             }
@@ -36,17 +31,17 @@ impl<C: Coord, const K: usize> Node<C, K> {
                 right,
                 ..
             } => {
-                let (look_first, look_next) = if point[*axis] < *median {
-                    (left, right)
+                let (look_first, look_next, dist2split) = if point[*axis] < *median {
+                    (left, right, *median - point[*axis])
                 } else {
-                    (right, left)
+                    (right, left, point[*axis] - *median)
                 };
 
                 // first search in the subtree containing the query point
                 look_first.nearests(point, num, heap);
 
                 // stop early if all num points found are closer than the splitter
-                if heap.len() >= num && heap.peek().unwrap().0 < (*median - point[*axis]) {
+                if heap.len() >= num && heap.peek().unwrap().0 < dist2split * dist2split {
                     return;
                 }
 

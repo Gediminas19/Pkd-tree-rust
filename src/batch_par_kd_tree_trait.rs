@@ -1,11 +1,11 @@
 use std::iter::Sum;
 
-use num_traits::{Bounded, NumOps};
+use num_traits::{Bounded, NumAssign, NumOps};
 use ordered_float::OrderedFloat;
 
 use crate::sieve::Basic;
 
-pub trait Coord: Basic + Default + Bounded + NumOps + Sum {}
+pub trait Coord: Basic + Default + Bounded + NumOps + NumAssign + Sum {}
 impl Coord for i32 {}
 impl Coord for u32 {}
 impl Coord for OrderedFloat<f32> {}

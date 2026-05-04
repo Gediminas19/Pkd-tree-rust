@@ -63,11 +63,10 @@ pub fn my_sieve<P: Basic, const B: usize>(
         new_elems.set_len(elems.len());
     }
     let dest_ptr = UnsafeSlicePtr(new_elems.as_mut_ptr());
-
     chunk_bucket_offsets
         .array_windows()
         .for_each(|[(offsets, elem_start), (_, elems_end)]| {
-            let _ = (*elem_start..*elems_end).fold(offsets.clone(), |mut curr_offsets, i| {
+            (*elem_start..*elems_end).fold(offsets.clone(), |mut curr_offsets, i| {
                 let bucket = get_bucket(i, &elems[i]) as usize;
                 let final_offset = bucket_offsets[bucket] + curr_offsets[bucket];
                 unsafe {
