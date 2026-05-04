@@ -24,19 +24,51 @@ impl<C: Coord, const K: usize> Node<C, K> {
                     *self = Self::build_simple(points, None, *bbox);
                 }
             }
-            Node::Interior {
-                splitter: (median, axis),
-                left,
-                right,
-                ..
-            } => {
-                let split = new_points.iter_mut().partition_in_place(|p| p[*axis] < *median);
-                let (left_points, right_points) = new_points.split_at_mut(split);
-                let (lbbox, rbbox) = bbox.split(*median, *axis);
-                rayon::join(
-                    || left.batch_insert_simple(left_points, lbbox),
-                    || right.batch_insert_simple(right_points, rbbox),
-                );
+            _ => {
+                let total = new_points.len();
+
+                let size = if let Node::Interior {
+                    left,
+                    right,
+                    splitter: (median, axis),
+                    size,
+                    ..
+                } = self
+                {
+                    let split = new_points.iter_mut().partition_in_place(|p| p[*axis] < *median);
+
+                    // get the total # of points that will go to left vs right subtree AFTER insert
+                    if f32::abs(((split + left.size()) as f32 / (total + *size) as f32) - 0.5) <= ALPHA {
+                        // split new points between left and right
+                        let (left_points, right_points) = new_points.split_at_mut(split);
+
+                        // split bbox
+                        let (lbbox, rbbox) = bbox.split(*median, *axis);
+
+                        // insert into subtrees in parallel
+                        rayon::join(
+                            || left.batch_insert_simple(left_points, lbbox),
+                            || right.batch_insert_simple(right_points, rbbox),
+                        );
+                        return;
+                    } else {
+                        *size
+                    }
+                } else {
+                    unreachable!("no other cases")
+                };
+
+                // collect all the points to use during rebuilding
+                let new_total = total + size;
+                let mut all_points = Vec::with_capacity(new_total);
+                unsafe {
+                    all_points.set_len(new_total);
+                }
+                self.flatten(&mut all_points[0..size]);
+                all_points[size..new_total].copy_from_slice(new_points);
+
+                // rebuild with old and new points
+                *self = Self::build(&mut all_points, bbox);
             }
         }
     }
